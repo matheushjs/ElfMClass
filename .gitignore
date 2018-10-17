@@ -1,0 +1,8 @@
+music_negative/
+music_positive/
+pyAudioAnalysis/.gitignore
+pyAudioAnalysis/LICENSE.md
+pyAudioAnalysis/README.md
+pyAudioAnalysis/icon.png
+pyAudioAnalysis/pyAudioAnalysis/data/
+pyAudioAnalysis/tests/
