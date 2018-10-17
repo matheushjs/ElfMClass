@@ -31,14 +31,14 @@ def toRaw():
         )
 
     # Convert files to wav
-    for file in toConvert:
-        stem = ''.join(file.split(".")[:-1])
+    for f in toConvert:
+        stem = ''.join(f.split(".")[:-1])
         retval = sp.run(
-            ["ffmpeg", "-i", file, "-ab", "160k",
+            ["ffmpeg", "-i", f, "-ab", "160k",
              "-ac", "2", "-ar", "44100", "-vn", stem + ".wav"]
             ).returncode
         if(retval != 0):
-            print("Sorry, could not convert file '{}', so we will ignore it for now.".format(file))
+            print("Sorry, could not convert file '{}', so we will ignore it for now.".format(f))
 
 try:
     os.chdir("./music_negative/")
