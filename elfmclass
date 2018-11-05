@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -W ignore
 
 from pyAudioAnalysis import audioBasicIO
 from pyAudioAnalysis import audioFeatureExtraction
@@ -8,7 +8,6 @@ import os
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.externals import joblib
-
 
 def getWavFiles():
     files = subp.check_output(["ls"]).decode("utf8").split("\n")
@@ -30,7 +29,7 @@ def getFeatureVector(file):
 
     print("Sampling rate, number of samples: ", Fs, len(x))
 
-    mterm, sterm, f_names = audioFeatureExtraction.mtFeatureExtraction(x, Fs, 2*Fs, 2*Fs, 0.050*Fs, 0.025*Fs);
+    mterm, sterm, f_names = audioFeatureExtraction.mtFeatureExtraction(x, Fs, 1*Fs, 1*Fs, 0.050*Fs, 0.025*Fs);
 
     # Should return 68 mid-term features per mid-term window (30 windows)
     return mterm.ravel()
@@ -54,10 +53,10 @@ def getDataset():
             dataset.append([features, 1])
     os.chdir("..")
 
-    return dataset
+    return np.array(dataset)
 
-def trainModel(trainData):
-    clf = MLPClassifier(solver="sgd", alpha=1e-4, hidden_layer_sizes=(10), random_state=1, max_iter=1000)
+def trainModel(trainData, hidden=(10)):
+    clf = MLPClassifier(solver="sgd", alpha=1e-4, hidden_layer_sizes=hidden, random_state=1, max_iter=1000)
 
     X = [ i[0] for i in trainData ]
     Y = [ i[1] for i in trainData ]
@@ -65,28 +64,38 @@ def trainModel(trainData):
 
     return clf
 
-def experiment():
-    dataset = getDataset()
+def experiment(dataset):
+    # k-fold cross-validation
+    nFolds = 5
+    foldSize = len(dataset)//nFolds
 
-    # Shuffle dataset
-    np.random.shuffle(dataset)
+    for layers in [(1), (2), (3), (4), (5), (10), (20), (30), (40), (50), (60), (70), (80), (90), (100), (5,2), (5,4), (10,2), (10,4), (20,2), (20,4)]:
+        success = 0
+        attempts = 0
+        for i in range(nFolds):
+            train_idx = np.array([ True for i in range(len(dataset)) ])
+            train_idx[i*foldSize:(i+1)*foldSize] = False
 
-    # Separate in train/test, 70% train
-    partition = int(0.7*len(dataset))
-    train = dataset[:partition]
-    test  = dataset[partition:]
+            if i == nFolds-1:
+                train_idx[-1] = False
 
-    # train model
-    clf = trainModel(train)
+            test_idx = train_idx == False
 
-    # Save model
-    joblib.dump(clf, 'model.joblib')
+            train = dataset[train_idx]
+            test  = dataset[test_idx]
 
-    # Test of test data
-    for sample in test:
-        x = sample[0]
-        y = sample[1]
-        y_star = clf.predict([x])
-        print("Correct / Prediction: {}/{}".format(y, y_star[0]))
+            # train model
+            clf = trainModel(train, layers)
 
-experiment()
+            # Calculate accuracy
+            for [x,y] in test:
+                y_star = clf.predict([x])
+                # print("[{},{}]".format(y,y_star))
+                if y_star == y:
+                    success += 1
+                attempts += 1
+
+        print("{}\t{}".format(layers, success / attempts))
+
+dataset = getDataset()
+experiment(dataset)
