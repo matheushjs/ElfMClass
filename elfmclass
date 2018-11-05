@@ -5,6 +5,10 @@ from pyAudioAnalysis import audioFeatureExtraction
 import matplotlib.pyplot as plt
 import subprocess as subp
 import os
+import numpy as np
+from sklearn.neural_network import MLPClassifier
+from sklearn.externals import joblib
+
 
 def getWavFiles():
     files = subp.check_output(["ls"]).decode("utf8").split("\n")
@@ -31,7 +35,7 @@ def getFeatureVector(file):
     # Should return 68 mid-term features per mid-term window (30 windows)
     return mterm.ravel()
 
-def trainModel():
+def getDataset():
     dataset = []
 
     os.chdir("music_negative/")
@@ -50,24 +54,39 @@ def trainModel():
             dataset.append([features, 1])
     os.chdir("..")
 
-    import numpy as np
-    from sklearn.neural_network import MLPClassifier
+    return dataset
 
+def trainModel(trainData):
+    clf = MLPClassifier(solver="sgd", alpha=1e-4, hidden_layer_sizes=(10), random_state=1, max_iter=1000)
+
+    X = [ i[0] for i in trainData ]
+    Y = [ i[1] for i in trainData ]
+    clf.fit(X, Y)
+
+    return clf
+
+def experiment():
+    dataset = getDataset()
+
+    # Shuffle dataset
     np.random.shuffle(dataset)
+
+    # Separate in train/test, 70% train
     partition = int(0.7*len(dataset))
     train = dataset[:partition]
     test  = dataset[partition:]
 
-    clf = MLPClassifier(solver='sgd', alpha=1e-4, hidden_layer_sizes=(10), random_state=1, max_iter=1000)
+    # train model
+    clf = trainModel(train)
 
-    X = [ i[0] for i in train ]
-    Y = [ i[1] for i in train ]
-    clf.fit(X, Y)
+    # Save model
+    joblib.dump(clf, 'model.joblib')
 
+    # Test of test data
     for sample in test:
         x = sample[0]
         y = sample[1]
         y_star = clf.predict([x])
         print("Correct / Prediction: {}/{}".format(y, y_star[0]))
 
-trainModel()
+experiment()
