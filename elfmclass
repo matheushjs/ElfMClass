@@ -1,0 +1,73 @@
+#!/usr/bin/python3
+
+from pyAudioAnalysis import audioBasicIO
+from pyAudioAnalysis import audioFeatureExtraction
+import matplotlib.pyplot as plt
+import subprocess as subp
+import os
+
+def getWavFiles():
+    files = subp.check_output(["ls"]).decode("utf8").split("\n")
+    files = [f for f in files if f.split(".")[-1] == "wav"]
+    return files
+
+# Gets feature vector for a wav song
+def getFeatureVector(file):
+    [Fs, x] = audioBasicIO.readAudioFile(file);
+    x = audioBasicIO.stereo2mono(x)
+
+    # We cut the audio to a 30 second window in the middle of the song
+    # If the audio is shorter than 30 second, we discard it
+    nSamples = Fs * 30
+    if len(x) < nSamples:
+        return None
+    offset   = (len(x) - nSamples) // 2
+    x = x[offset:offset+nSamples]
+
+    print("Sampling rate, number of samples: ", Fs, len(x))
+
+    mterm, sterm, f_names = audioFeatureExtraction.mtFeatureExtraction(x, Fs, 2*Fs, 2*Fs, 0.050*Fs, 0.025*Fs);
+
+    # Should return 68 mid-term features per mid-term window (30 windows)
+    return mterm.ravel()
+
+def trainModel():
+    dataset = []
+
+    os.chdir("music_negative/")
+    files = getWavFiles()
+    for f in files:
+        features = getFeatureVector(f)
+        if features is not None:
+            dataset.append([features, 0])
+    os.chdir("..")
+
+    os.chdir("music_positive/")
+    files = getWavFiles()
+    for f in files:
+        features = getFeatureVector(f)
+        if features is not None:
+            dataset.append([features, 1])
+    os.chdir("..")
+
+    import numpy as np
+    from sklearn.neural_network import MLPClassifier
+
+    np.random.shuffle(dataset)
+    partition = int(0.7*len(dataset))
+    train = dataset[:partition]
+    test  = dataset[partition:]
+
+    clf = MLPClassifier(solver='sgd', alpha=1e-4, hidden_layer_sizes=(10), random_state=1, max_iter=1000)
+
+    X = [ i[0] for i in train ]
+    Y = [ i[1] for i in train ]
+    clf.fit(X, Y)
+
+    for sample in test:
+        x = sample[0]
+        y = sample[1]
+        y_star = clf.predict([x])
+        print("Correct / Prediction: {}/{}".format(y, y_star[0]))
+
+trainModel()
