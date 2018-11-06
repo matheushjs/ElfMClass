@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -W ignore
+#!/usr/bin/python3
 
 from pyAudioAnalysis import audioBasicIO
 from pyAudioAnalysis import audioFeatureExtraction
@@ -8,6 +8,7 @@ import os
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.externals import joblib
+import time
 
 def getWavFiles():
     files = subp.check_output(["ls"]).decode("utf8").split("\n")
@@ -15,19 +16,29 @@ def getWavFiles():
     return files
 
 # Gets feature vector for a wav song
+counter = 0
 def getFeatureVector(file):
-    [Fs, x] = audioBasicIO.readAudioFile(file);
-    x = audioBasicIO.stereo2mono(x)
+    global counter
+
+    try:
+        [Fs, x] = audioBasicIO.readAudioFile(file);
+        x = audioBasicIO.stereo2mono(x)
+    except:
+        print("Error on file: ", file)
+        return None
 
     # We cut the audio to a 30 second window in the middle of the song
     # If the audio is shorter than 30 second, we discard it
     nSamples = Fs * 30
-    if len(x) < nSamples:
+    if isinstance(x, int):
+        return None
+    elif len(x) < nSamples:
         return None
     offset   = (len(x) - nSamples) // 2
     x = x[offset:offset+nSamples]
 
-    print("Sampling rate, number of samples: ", Fs, len(x))
+    print("{}\tSampling rate, number of samples: {} {}".format(counter, Fs, len(x)))
+    counter += 1
 
     mterm, sterm, f_names = audioFeatureExtraction.mtFeatureExtraction(x, Fs, 1*Fs, 1*Fs, 0.050*Fs, 0.025*Fs);
 
@@ -55,8 +66,8 @@ def getDataset():
 
     return np.array(dataset)
 
-def trainModel(trainData, hidden=(10)):
-    clf = MLPClassifier(solver="sgd", alpha=1e-4, hidden_layer_sizes=hidden, random_state=1, max_iter=1000)
+def trainModel(trainData, solve="lbfgs", hidden=(10)):
+    clf = MLPClassifier(solver=solve, alpha=1e-4, hidden_layer_sizes=hidden, random_state=1, max_iter=1000)
 
     X = [ i[0] for i in trainData ]
     Y = [ i[1] for i in trainData ]
@@ -69,33 +80,66 @@ def experiment(dataset):
     nFolds = 5
     foldSize = len(dataset)//nFolds
 
-    for layers in [(1), (2), (3), (4), (5), (10), (20), (30), (40), (50), (60), (70), (80), (90), (100), (5,2), (5,4), (10,2), (10,4), (20,2), (20,4)]:
-        success = 0
-        attempts = 0
-        for i in range(nFolds):
-            train_idx = np.array([ True for i in range(len(dataset)) ])
-            train_idx[i*foldSize:(i+1)*foldSize] = False
+    for solver in ["lbfgs", "adam", "sgd"]:
+        print("{}\t{}\t{}\t{}".format("layrs", "acc", "train", "test"))
 
-            if i == nFolds-1:
-                train_idx[-1] = False
+        for layers in [(1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (20), (30), (40), (50), (60), (5,2), (5,4), (10,2), (10,4), (20,2), (20,4)]:
+            success = 0
+            attempts = 0
 
-            test_idx = train_idx == False
+            execTries = 10
+            testTime  = 0
+            trainTime = 0
 
-            train = dataset[train_idx]
-            test  = dataset[test_idx]
+            for execId in range(execTries):
+                for i in range(nFolds):
+                    train_idx = np.array([ True for i in range(len(dataset)) ])
+                    train_idx[i*foldSize:(i+1)*foldSize] = False
 
-            # train model
-            clf = trainModel(train, layers)
+                    if i == nFolds-1:
+                        train_idx[-1] = False
 
-            # Calculate accuracy
-            for [x,y] in test:
-                y_star = clf.predict([x])
-                # print("[{},{}]".format(y,y_star))
-                if y_star == y:
-                    success += 1
-                attempts += 1
+                    test_idx = train_idx == False
 
-        print("{}\t{}".format(layers, success / attempts))
+                    train = dataset[train_idx]
+                    test  = dataset[test_idx]
+
+                    # train model
+                    beg = time.time()
+                    clf = trainModel(train, solver, layers)
+                    trainTime += time.time() - beg
+
+                    beg = time.time()
+
+                    # Calculate accuracy
+                    for [x,y] in test:
+                        y_star = clf.predict([x])
+                        # print("[{},{}]".format(y,y_star))
+                        if y_star == y:
+                            success += 1
+                        attempts += 1
+
+                    testTime += time.time() - beg
+
+            print("{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries))
+
+def zNormalize(dataset):
+    # Each row in the dataset has the feature vector, then its class
+    feats = dataset[:,0]
+
+    # Transform to matrix
+    matrix = np.matrix([[col for col in row] for row in feats])
+
+    # For each feature (column), we z-normalize it
+    for col in range(matrix.shape[1]):
+        mean = np.mean(matrix[:,col])
+        std  = np.std(matrix[:,col])
+        matrix[:,col] = (matrix[:,col] - mean) / std
+
+    # Replace features in the dataset
+    for row in range(matrix.shape[0]):
+        dataset[row,0] = np.array(matrix[row,:]).flatten()
 
 dataset = getDataset()
+zNormalize(dataset)
 experiment(dataset)
