@@ -81,7 +81,7 @@ def experiment(dataset):
     foldSize = len(dataset)//nFolds
 
     for solver in ["lbfgs", "adam", "sgd"]:
-        print("{}\t{}\t{}\t{}".format("layrs", "acc", "train", "test"))
+        print("{}\t{}\t{}\t{}\t{}".format("solver", "layrs", "acc", "train", "test"))
 
         for layers in [(1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (20), (30), (40), (50), (60), (5,2), (5,4), (10,2), (10,4), (20,2), (20,4)]:
             success = 0
