@@ -9,16 +9,15 @@ import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.externals import joblib
 
+# Returns the .wav files in current directory.
+# Return value is a list of filenames.
 def getWavFiles():
     files = subp.check_output(["ls"]).decode("utf8").split("\n")
     files = [f for f in files if f.split(".")[-1] == "wav"]
     return files
 
 # Gets feature vector for a wav song
-counter = 0
 def getFeatureVector(file):
-    global counter
-
     try:
         [Fs, x] = audioBasicIO.readAudioFile(file);
         x = audioBasicIO.stereo2mono(x)
@@ -36,14 +35,13 @@ def getFeatureVector(file):
     offset   = (len(x) - nSamples) // 2
     x = x[offset:offset+nSamples]
 
-    print("{}\tSampling rate, number of samples: {} {}".format(counter, Fs, len(x)))
-    counter += 1
-
     mterm, sterm, f_names = audioFeatureExtraction.mtFeatureExtraction(x, Fs, 1*Fs, 1*Fs, 0.050*Fs, 0.025*Fs);
 
     # Should return 68 mid-term features per mid-term window (30 windows)
     return mterm.ravel()
 
+# Returns the genres for each negative example.
+# Return value is a dictionary of music_id -> genre
 def getGenres():
     with open("genres.csv") as fp:
         genres = fp.read()
@@ -55,6 +53,8 @@ def getGenres():
 
     return gdict
 
+# Returns the dataset composed of feature vectors and the class of each music
+# Return value is a matrix where each row is [feature vector, class]
 def getDataset():
     dataset = []
 
@@ -76,6 +76,7 @@ def getDataset():
 
     return np.array(dataset)
 
+# Trains an MLP using the given dataset.
 def trainModel(trainData, solve="lbfgs", hidden=(10)):
     clf = MLPClassifier(solver=solve, alpha=1e-4, hidden_layer_sizes=hidden, max_iter=1000, activation="logistic")
 
@@ -87,7 +88,8 @@ def trainModel(trainData, solve="lbfgs", hidden=(10)):
 
 def experiment(dataset):
     # Create a randomized copy of the dataset
-    rDataset = np.shuffle(dataset.copy())
+    rDataset = dataset.copy()
+    np.random.shuffle(rDataset)
 
     # k-fold cross-validation
     nFolds = 5
@@ -136,6 +138,7 @@ def experiment(dataset):
 
             print("{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries))
 
+# Normalizes the dataset so that each feature has mean 0 and deviation 1
 def zNormalize(dataset):
     # Each row in the dataset has the feature vector, then its class
     feats = dataset[:,0]
