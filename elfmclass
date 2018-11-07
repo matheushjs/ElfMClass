@@ -4,11 +4,10 @@ from pyAudioAnalysis import audioBasicIO
 from pyAudioAnalysis import audioFeatureExtraction
 import matplotlib.pyplot as plt
 import subprocess as subp
-import os
+import os, time, sys
 import numpy as np
 from sklearn.neural_network import MLPClassifier
 from sklearn.externals import joblib
-import time
 
 def getWavFiles():
     files = subp.check_output(["ls"]).decode("utf8").split("\n")
@@ -140,6 +139,30 @@ def zNormalize(dataset):
     for row in range(matrix.shape[0]):
         dataset[row,0] = np.array(matrix[row,:]).flatten()
 
-dataset = getDataset()
-zNormalize(dataset)
-experiment(dataset)
+
+if len(sys.argv) == 1:
+    helpmsg = """Usage: {} [option [option...]]
+
+OPTIONS
+=======
+    -f    - generate features
+    -e    - run experiments using K-fold cross validation
+""".format(sys.argv[0])
+
+    print(helpmsg, end="")
+    sys.exit(1)
+
+# Get or generate dataset
+if sys.argv.count("-f") > 0:
+    dataset = getDataset()
+    zNormalize(dataset)
+    np.save("features.npy", dataset)
+else:
+    try:
+        dataset = np.load("features.npy")
+    except:
+        print("Please generate features first. Run the program without arguments for help.")
+
+# Execute experiments
+if sys.argv.count("-e") > 0:
+    experiment(dataset)
