@@ -34,9 +34,8 @@ def toRaw():
     for f in toConvert:
         stem = ''.join(f.split(".")[:-1])
         retval = sp.run(
-            #["ffmpeg", "-i", f, "-ab", "160k",
-            # "-ac", "2", "-ar", "44100", "-vn", stem + ".wav"]
             ["ffmpeg", "-i", f, "-ab", "96k",
+             "-ss", "0", "-t", "30", # Get 30 seconds, starting from 0
              "-ac", "1", "-ar", "44100", "-vn", stem + ".wav"]
             ).returncode
         if(retval != 0):
