@@ -27,7 +27,7 @@ def getFeatureVector(file):
 
     # We cut the audio to a 30 second window in the middle of the song
     # If the audio is shorter than 30 second, we discard it
-    nSamples = Fs * 30
+    nSamples = int(Fs * 29.9)
     if isinstance(x, int):
         return None
     elif len(x) < nSamples:
@@ -54,27 +54,53 @@ def getGenres():
     return gdict
 
 # Returns the dataset composed of feature vectors and the class of each music
-# Return value is a matrix where each row is [feature vector, class]
+# Return value is a list containing:
+#     1) a matrix where each row is [feature vector, class, music id, genre]
+#     2) dictionary with counters of how many items per genre
 def getDataset():
     dataset = []
+    progress = 0
+    genreCounter = {}
+
+    # Get genre dictionary and initialize genre counters
+    genres = getGenres()
+    for g in set(genres.values()):
+        genreCounter[g] = 0
+    genreCounter["Classical"] = 0
 
     os.chdir("music_negative/")
     files = getWavFiles()
     for f in files:
+        if progress % 10 == 0:
+            print("Processing: {}".format(progress))
+
         features = getFeatureVector(f)
         if features is not None:
-            dataset.append([features, 0])
+            idd = int(f.rstrip(".wav")) # Get music id from filename
+            g   = genres[idd]           # Get music genre from dictionary
+            genreCounter[g] += 1        # Increment genrecounter
+            dataset.append([features, 0, idd, g])
+
+        progress += 1
+
     os.chdir("..")
 
     os.chdir("music_positive/")
     files = getWavFiles()
     for f in files:
+        if progress % 10 == 0:
+            print("Processing: {}".format(progress))
+
         features = getFeatureVector(f)
         if features is not None:
-            dataset.append([features, 1])
+            dataset.append([features, 1, -1, "Classical"])
+            genreCounter["Classical"] += 1
+
+        progress += 1
+
     os.chdir("..")
 
-    return np.array(dataset)
+    return [np.array(dataset), genreCounter]
 
 # Trains an MLP using the given dataset.
 def trainModel(trainData, solve="lbfgs", hidden=(10)):
@@ -91,6 +117,9 @@ def experiment(dataset):
     rDataset = dataset.copy()
     np.random.shuffle(rDataset)
 
+    # Create statistics
+    genres = set([ row[3] for row in dataset ])
+
     # k-fold cross-validation
     nFolds = 5
     foldSize = len(rDataset)//nFolds
@@ -105,6 +134,11 @@ def experiment(dataset):
             execTries = 10
             testTime  = 0
             trainTime = 0
+
+            # Create statistics
+            stats  = {}
+            for g in genres:
+                stats[g] = [0,0] # 0 Successes, 0 Failures
 
             for execId in range(execTries):
                 for i in range(nFolds):
@@ -127,16 +161,19 @@ def experiment(dataset):
                     beg = time.time()
 
                     # Calculate accuracy
-                    for [x,y] in test:
+                    for [x,y,idd,genre] in test:
                         y_star = clf.predict([x])
                         # print("[{},{}]".format(y,y_star))
                         if y_star == y:
                             success += 1
+                            stats[genre][0] += 1
+                        else:
+                            stats[genre][1] += 1
                         attempts += 1
 
                     testTime += time.time() - beg
 
-            print("{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries))
+            print("{}\t{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries, stats))
 
 # Normalizes the dataset so that each feature has mean 0 and deviation 1
 def zNormalize(dataset):
@@ -171,9 +208,11 @@ OPTIONS
 
 # Get or generate dataset
 if sys.argv.count("-f") > 0:
-    dataset = getDataset()
+    [dataset, genreCounter] = getDataset()
     zNormalize(dataset)
     np.save("features.npy", dataset)
+    for key in genreCounter:
+        print("{}: {}".format(key, genreCounter[key]))
 else:
     try:
         dataset = np.load("features.npy")
