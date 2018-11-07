@@ -75,9 +75,12 @@ def trainModel(trainData, solve="lbfgs", hidden=(10)):
     return clf
 
 def experiment(dataset):
+    # Create a randomized copy of the dataset
+    rDataset = np.shuffle(dataset.copy())
+
     # k-fold cross-validation
     nFolds = 5
-    foldSize = len(dataset)//nFolds
+    foldSize = len(rDataset)//nFolds
 
     for solver in ["lbfgs", "adam", "sgd"]:
         print("{}\t{}\t{}\t{}\t{}".format("solver", "layrs", "acc", "train", "test"))
@@ -92,7 +95,7 @@ def experiment(dataset):
 
             for execId in range(execTries):
                 for i in range(nFolds):
-                    train_idx = np.array([ True for i in range(len(dataset)) ])
+                    train_idx = np.array([ True for i in range(len(rDataset)) ])
                     train_idx[i*foldSize:(i+1)*foldSize] = False
 
                     if i == nFolds-1:
@@ -100,8 +103,8 @@ def experiment(dataset):
 
                     test_idx = train_idx == False
 
-                    train = dataset[train_idx]
-                    test  = dataset[test_idx]
+                    train = rDataset[train_idx]
+                    test  = rDataset[test_idx]
 
                     # train model
                     beg = time.time()
