@@ -71,15 +71,18 @@ def getDataset():
     os.chdir("music_negative/")
     files = getWavFiles()
     for f in files:
+        idd = int(f.rstrip(".wav"))   # Get music id from filename
+        genre = genres[idd]           # Get music genre from dictionary
+        if genreCounter[genre] > 400: # Don't get features for more than 400 songs per genre
+            continue
+
         if progress % 10 == 0:
             print("Processing: {}".format(progress))
 
         features = getFeatureVector(f)
         if features is not None:
-            idd = int(f.rstrip(".wav")) # Get music id from filename
-            g   = genres[idd]           # Get music genre from dictionary
-            genreCounter[g] += 1        # Increment genrecounter
-            dataset.append([features, 0, idd, g])
+            dataset.append([features, 0, idd, genre])
+            genreCounter[genre] += 1    # Increment genrecounter
 
         progress += 1
 
@@ -127,7 +130,7 @@ def experiment(dataset):
     for solver in ["lbfgs", "adam", "sgd"]:
         print("{}\t{}\t{}\t{}\t{}".format("solver", "layrs", "acc", "train", "test"))
 
-        for layers in [(1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (20), (30), (40), (50), (60), (5,2), (5,4), (10,2), (10,4), (20,2), (20,4)]:
+        for layers in [(1), (2), (3), (4), (5), (6), (7), (8)]:
             success = 0
             attempts = 0
 
