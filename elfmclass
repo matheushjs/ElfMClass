@@ -44,6 +44,17 @@ def getFeatureVector(file):
     # Should return 68 mid-term features per mid-term window (30 windows)
     return mterm.ravel()
 
+def getGenres():
+    with open("genres.csv") as fp:
+        genres = fp.read()
+
+    gdict = {}
+    genres = [ g.split(",") for g in genres.strip().split("\n") ]
+    for row in genres:
+        gdict[int(row[0])] = row[1]
+
+    return gdict
+
 def getDataset():
     dataset = []
 
@@ -165,6 +176,7 @@ else:
         dataset = np.load("features.npy")
     except:
         print("Please generate features first. Run the program without arguments for help.")
+        sys.exit(2)
 
 # Execute experiments
 if sys.argv.count("-e") > 0:
