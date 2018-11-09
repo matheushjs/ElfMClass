@@ -6,7 +6,7 @@ import subprocess as sp
 # In each music directory, we convert all musics to .wav format
 # We only convert those that haven't been converted yet
 
-def toRaw():
+def toRaw(ss=0, t=30):
     # Get file names
     files = sp.check_output(["ls"]).decode("utf8").strip().split("\n")
 
@@ -35,7 +35,7 @@ def toRaw():
         stem = ''.join(f.split(".")[:-1])
         retval = sp.run(
             ["ffmpeg", "-i", f, # "-ab", "96k",
-             "-ss", "0", "-t", "30", # Get 30 seconds, starting from 0
+             "-ss", str(ss), "-t", str(t), # Get 30 seconds, starting from 0
              "-ac", "1", "-ar", "44100", "-vn", stem + ".wav"]
             ).returncode
         if(retval != 0):
@@ -45,16 +45,19 @@ try:
     os.chdir("./music_negative/")
 except:
     print("Couldn't chdir. We are on dir: " + os.getcwd())
-
 toRaw()
-
 os.chdir("..")
+
 try:
     os.chdir("./music_positive/")
 except:
     print("Couldn't chdir. We are on dir: " + os.getcwd())
-
 toRaw()
-
 os.chdir("..")
 
+try:
+    os.chdir("./predict/")
+except:
+    print("Couldn't chdir. We are on dir: " + os.getcwd())
+toRaw(ss=30, t=30)
+os.chdir("..")
