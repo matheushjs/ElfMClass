@@ -106,7 +106,7 @@ def getDataset():
     return [np.array(dataset), genreCounter]
 
 # Trains an MLP using the given dataset.
-def trainModel(trainData, solve="lbfgs", hidden=(10)):
+def trainModel(trainData, solve="lbfgs", hidden=(4)):
     clf = MLPClassifier(solver=solve, alpha=1e-4, hidden_layer_sizes=hidden, max_iter=1000, activation="logistic")
 
     X = [ i[0] for i in trainData ]
@@ -115,7 +115,7 @@ def trainModel(trainData, solve="lbfgs", hidden=(10)):
 
     return clf
 
-def experiment(dataset):
+def experimentMany(dataset):
     # Create a randomized copy of the dataset
     rDataset = dataset.copy()
     np.random.shuffle(rDataset)
@@ -178,6 +178,67 @@ def experiment(dataset):
 
             print("{}\t{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries, stats))
 
+def experimentOne(dataset):
+    # Create a randomized copy of the dataset
+    rDataset = dataset.copy()
+    np.random.shuffle(rDataset)
+
+    # Create statistics
+    genres = set([ row[3] for row in dataset ])
+
+    # k-fold cross-validation
+    nFolds = 5
+    foldSize = len(rDataset)//nFolds
+
+    print("{}\t{}\t{}".format("acc", "train", "test"))
+
+    success = 0
+    attempts = 0
+
+    execTries = 10
+    testTime  = 0
+    trainTime = 0
+
+    # Create statistics
+    stats  = {}
+    for g in genres:
+        stats[g] = [0,0] # 0 Successes, 0 Failures
+
+    for execId in range(execTries):
+        for i in range(nFolds):
+            train_idx = np.array([ True for i in range(len(rDataset)) ])
+            train_idx[i*foldSize:(i+1)*foldSize] = False
+
+            if i == nFolds-1:
+                train_idx[-1] = False
+
+            test_idx = train_idx == False
+
+            train = rDataset[train_idx]
+            test  = rDataset[test_idx]
+
+            # train model
+            beg = time.time()
+            clf = trainModel(train, "lbfgs", (4))
+            trainTime += time.time() - beg
+
+            beg = time.time()
+
+            # Calculate accuracy
+            for [x,y,idd,genre] in test:
+                y_star = clf.predict([x])
+                # print("[{},{}]".format(y,y_star))
+                if y_star == y:
+                    success += 1
+                    stats[genre][0] += 1
+                else:
+                    stats[genre][1] += 1
+                attempts += 1
+
+            testTime += time.time() - beg
+
+        print("{}\t{}\t{}\t{}".format(success / attempts, trainTime / execTries, testTime / execTries, stats))
+
 # Normalizes the dataset so that each feature has mean 0 and deviation 1
 def zNormalize(dataset):
     # Each row in the dataset has the feature vector, then its class
@@ -196,6 +257,20 @@ def zNormalize(dataset):
     for row in range(matrix.shape[0]):
         dataset[row,0] = np.array(matrix[row,:]).flatten()
 
+# Balances the dataset by replicating classical songs
+def fillDataset(dataset):
+    nOther = len(dataset[dataset[:,3] != "Classical"])
+    nClass = len(dataset[dataset[:,3] == "Classical"])
+    remaining = nOther - nClass
+
+    if remaining < 0:
+        return dataset
+
+    nCopies = (remaining + nClass - 1) // nClass
+    classical = dataset[dataset[:,3] == "Classical"]
+    classical = np.concatenate([classical for i in range(nCopies)])
+
+    return np.concatenate([dataset, classical])
 
 if len(sys.argv) == 1:
     helpmsg = """Usage: {} [option [option...]]
@@ -223,6 +298,12 @@ else:
         print("Please generate features first. Run the program without arguments for help.")
         sys.exit(2)
 
-# Execute experiments
+# Execute experiments for multiple configurations
 if sys.argv.count("-e") > 0:
-    experiment(dataset)
+    dataset = fillDataset(dataset)
+    experimentMany(dataset)
+
+# Execute experiments for the chosen configuration
+if sys.argv.count("-o") > 0:
+    dataset = fillDataset(dataset)
+    experimentOne(dataset)
