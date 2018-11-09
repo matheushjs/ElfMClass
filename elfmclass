@@ -106,14 +106,25 @@ def getDataset():
     return [np.array(dataset), genreCounter]
 
 # Trains an MLP using the given dataset.
-def trainModel(trainData, solve="lbfgs", hidden=(4)):
+# Saves the model if desired.
+def trainModel(trainData, solve="lbfgs", hidden=(4), save=False):
     clf = MLPClassifier(solver=solve, alpha=1e-4, hidden_layer_sizes=hidden, max_iter=1000, activation="logistic")
 
     X = [ i[0] for i in trainData ]
     Y = [ i[1] for i in trainData ]
     clf.fit(X, Y)
 
+    if save:
+        joblib.dump(clf, 'mlp.model')
+
     return clf
+
+# Returns saved model if it exists
+def loadModel():
+    try:
+        return joblib.load('mlp.model')
+    except FileNotFoundError:
+        return None
 
 def experimentMany(dataset):
     # Create a randomized copy of the dataset
@@ -280,6 +291,8 @@ OPTIONS
     -f    - generate features
     -e    - run experiments using K-fold cross validation
     -o    - run experiments on the selected model
+    -c    - create neural network model
+    -p    - predict classes of files in 'predict/' folder
 """.format(sys.argv[0])
 
     print(helpmsg, end="")
@@ -306,3 +319,18 @@ if sys.argv.count("-e") > 0:
 # Execute experiments for the chosen configuration
 if sys.argv.count("-o") > 0:
     experimentOne(dataset)
+
+# Create model with the whole dataset
+if sys.argv.count("-c") > 0:
+    trainModel(dataset, save=True)
+
+# Predict classes
+if sys.argv.count("-p") > 0:
+    clf = loadModel()
+    if not clf:
+        print("Please create the model using '-c' first.")
+        sys.exit(3)
+
+
+
+
