@@ -178,6 +178,21 @@ def experimentMany(dataset):
 
             print("{}\t{}\t{}\t{}\t{}\t{}".format(solver, layers, success / attempts, trainTime / execTries, testTime / execTries, stats))
 
+# Balances the dataset by replicating classical songs
+def fillDataset(dataset):
+    nOther = len(dataset[dataset[:,3] != "Classical"])
+    nClass = len(dataset[dataset[:,3] == "Classical"])
+    remaining = nOther - nClass
+
+    if remaining < 0:
+        return dataset
+
+    nCopies = (remaining + nClass - 1) // nClass
+    classical = dataset[dataset[:,3] == "Classical"]
+    classical = np.concatenate([classical for i in range(nCopies)])
+
+    return np.concatenate([dataset, classical])
+
 def experimentOne(dataset):
     # Create a randomized copy of the dataset
     rDataset = dataset.copy()
@@ -214,7 +229,7 @@ def experimentOne(dataset):
 
             test_idx = train_idx == False
 
-            train = rDataset[train_idx]
+            train = fillDataset(rDataset[train_idx])
             test  = rDataset[test_idx]
 
             # train model
@@ -257,21 +272,6 @@ def zNormalize(dataset):
     for row in range(matrix.shape[0]):
         dataset[row,0] = np.array(matrix[row,:]).flatten()
 
-# Balances the dataset by replicating classical songs
-def fillDataset(dataset):
-    nOther = len(dataset[dataset[:,3] != "Classical"])
-    nClass = len(dataset[dataset[:,3] == "Classical"])
-    remaining = nOther - nClass
-
-    if remaining < 0:
-        return dataset
-
-    nCopies = (remaining + nClass - 1) // nClass
-    classical = dataset[dataset[:,3] == "Classical"]
-    classical = np.concatenate([classical for i in range(nCopies)])
-
-    return np.concatenate([dataset, classical])
-
 if len(sys.argv) == 1:
     helpmsg = """Usage: {} [option [option...]]
 
@@ -279,6 +279,7 @@ OPTIONS
 =======
     -f    - generate features
     -e    - run experiments using K-fold cross validation
+    -o    - run experiments on the selected model
 """.format(sys.argv[0])
 
     print(helpmsg, end="")
@@ -300,10 +301,8 @@ else:
 
 # Execute experiments for multiple configurations
 if sys.argv.count("-e") > 0:
-    dataset = fillDataset(dataset)
     experimentMany(dataset)
 
 # Execute experiments for the chosen configuration
 if sys.argv.count("-o") > 0:
-    dataset = fillDataset(dataset)
     experimentOne(dataset)
