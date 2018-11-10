@@ -349,6 +349,10 @@ if sys.argv.count("-p") > 0:
     songs = getPredictSongs()
     zNormalize(songs)
 
+    fileColor = lambda x: colored(x, "cyan")
+    classColor = lambda x: colored(x, "green", attrs=["bold"])
+    nClassColor = lambda x: colored(x, "red", attrs=["bold"])
+
     if not clf:
         print("Please create the model using '-c' first.")
         sys.exit(3)
@@ -359,6 +363,9 @@ if sys.argv.count("-p") > 0:
 
     for s in songs:
         y = clf.predict([s[0]])
-        print("\"{}\" is {}".format(
-            colored(s[1].rjust(maxSize)[:maxSize], "cyan"),
-            colored("CLASSICAL", "green", attrs=["bold"]) if y == 1 else colored("NOT CLASSICAL", "red", attrs=["bold"])))
+        fileStr = "\"" + s[1] + "\""
+        fileStr = fileStr.rjust(maxSize)[:maxSize]
+        print("{} is {}".format(
+                fileColor(fileStr),
+                classColor("Classical") if y == 1 else nClassColor("Not Classical")
+        ))
