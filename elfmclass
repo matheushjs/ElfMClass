@@ -85,7 +85,7 @@ def getFeatureVectorProgress(file):
         print("{}/{}: Extracting features from {}.".format(
             classColor(str(gfvpCounter.value).rjust(4)),
             classColor(str(gfvpTotal).ljust(4)),
-            fileColor("\"" + file + "\"")))
+            fileColor("\"" + file[:50] + "\"")))
 
     return getFeatureVector(file)
 
@@ -133,24 +133,13 @@ def getDataset():
     os.chdir("music_positive/")
     files = getWavFiles()
 
-    # Filter the files returned above
-    newFiles = []
-    for f in files:
-        idd = int(f.rstrip(".wav"))   # Get music id from filename
-        genre = genres[idd]           # Get music genre from dictionary
-        if genreCounter[genre] > 400: # Don't get features for more than 400 songs per genre
-            continue
-        newFiles.append(f)
-
     # Get feature vectors
-    getFeatureVectorProgress_i(len(newFiles))
+    getFeatureVectorProgress_i(len(files))
     with mp.Pool() as p:
-        allFeatures = p.map(getFeatureVectorProgress, newFiles)
+        allFeatures = p.map(getFeatureVectorProgress, files)
 
     # Add feature vectors to dataset
-    for features, filename in zip(allFeatures, newFiles):
-        idd = int(f.rstrip(".wav"))   # Get music id from filename
-        genre = genres[idd]           # Get music genre from dictionary
+    for features, filename in zip(allFeatures, files):
         if features is not None:
             dataset.append([features, 1, -1, "Classical"])
             genreCounter["Classical"] += 1    # Increment genre counter
