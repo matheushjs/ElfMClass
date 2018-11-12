@@ -11,6 +11,11 @@ from sklearn.externals import joblib
 from termcolor import colored
 import multiprocessing as mp
 
+fileColor = lambda x: colored(x, "cyan")
+classColor = lambda x: colored(x, "green", attrs=["bold"])
+nClassColor = lambda x: colored(x, "red", attrs=["bold"])
+
+
 # Returns the .wav files in current directory.
 # Return value is a list of filenames.
 def getWavFiles():
@@ -55,13 +60,34 @@ def getGenres():
 
     return gdict
 
+# Objects for the multiprocessing routines
+gfvpCounter = mp.Value("i", 0)
+gfvpTotal   = 0
+
+# Initializes global counters for feature counting
+def getFeatureVectorProgress_i(total):
+    global gfvpCounter, gfvpTotal
+    gfvpCounter.value = 0
+    gfvpTotal = total
+
+def getFeatureVectorProgress(file):
+    global gfvpCounter, gfvpTotal
+
+    with gfvpCounter.get_lock():
+        gfvpCounter.value += 1
+
+    print("{}/{}: Extracting features from {}.".format(
+        classColor(str(gfvpCounter.value).rjust(4)),
+        classColor(str(gfvpTotal).ljust(4)),
+        fileColor("\"" + file + "\"")))
+    return getFeatureVector(file)
+
 # Returns the dataset composed of feature vectors and the class of each music
 # Return value is a list containing:
 #     1) a matrix where each row is [feature vector, class, music id, genre]
 #     2) dictionary with counters of how many items per genre
 def getDataset():
     dataset = []
-    progress = 0
     genreCounter = {}
 
     # Get genre dictionary and initialize genre counters
@@ -72,44 +98,59 @@ def getDataset():
 
     os.chdir("music_negative/")
     files = getWavFiles()
+
+    # Filter the files returned above
+    newFiles = []
     for f in files:
         idd = int(f.rstrip(".wav"))   # Get music id from filename
         genre = genres[idd]           # Get music genre from dictionary
         if genreCounter[genre] > 400: # Don't get features for more than 400 songs per genre
             continue
+        newFiles.append(f)
 
-        if progress % 10 == 0:
-            print("Processing: {}".format(progress))
+    # Get feature vectors
+    getFeatureVectorProgress_i(len(newFiles))
+    with mp.Pool() as p:
+        allFeatures = p.map(getFeatureVectorProgress, newFiles)
 
-        features = getFeatureVector(f)
+    # Add feature vectors to dataset
+    for features, filename in zip(allFeatures, newFiles):
+        idd = int(f.rstrip(".wav"))   # Get music id from filename
+        genre = genres[idd]           # Get music genre from dictionary
         if features is not None:
             dataset.append([features, 0, idd, genre])
             genreCounter[genre] += 1    # Increment genrecounter
-
-        progress += 1
 
     os.chdir("..")
 
     os.chdir("music_positive/")
     files = getWavFiles()
-    for f in files:
-        if progress % 10 == 0:
-            print("Processing: {}".format(progress))
 
-        features = getFeatureVector(f)
+    # Filter the files returned above
+    newFiles = []
+    for f in files:
+        idd = int(f.rstrip(".wav"))   # Get music id from filename
+        genre = genres[idd]           # Get music genre from dictionary
+        if genreCounter[genre] > 400: # Don't get features for more than 400 songs per genre
+            continue
+        newFiles.append(f)
+
+    # Get feature vectors
+    getFeatureVectorProgress_i(len(newFiles))
+    with mp.Pool() as p:
+        allFeatures = p.map(getFeatureVectorProgress, newFiles)
+
+    # Add feature vectors to dataset
+    for features, filename in zip(allFeatures, newFiles):
+        idd = int(f.rstrip(".wav"))   # Get music id from filename
+        genre = genres[idd]           # Get music genre from dictionary
         if features is not None:
             dataset.append([features, 1, -1, "Classical"])
-            genreCounter["Classical"] += 1
-
-        progress += 1
+            genreCounter["Classical"] += 1    # Increment genre counter
 
     os.chdir("..")
 
     return [np.array(dataset), genreCounter]
-
-def getFeatureVectorProgress(file):
-    print("Extracting features from '{}'.".format(file))
-    return getFeatureVector(file)
 
 # Returns [dataset, filenames] for the songs to predict
 def getPredictSongs():
@@ -119,6 +160,7 @@ def getPredictSongs():
     files = getWavFiles()
     total    = len(files)
 
+    getFeatureVectorProgress_i(total)
     with mp.Pool() as p:
         features = p.map(getFeatureVectorProgress, files)
 
@@ -353,10 +395,6 @@ if sys.argv.count("-p") > 0:
     clf = loadModel()
     songs = getPredictSongs()
     zNormalize(songs)
-
-    fileColor = lambda x: colored(x, "cyan")
-    classColor = lambda x: colored(x, "green", attrs=["bold"])
-    nClassColor = lambda x: colored(x, "red", attrs=["bold"])
 
     if not clf:
         print("Please create the model using '-c' first.")
