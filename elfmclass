@@ -60,6 +60,11 @@ def getGenres():
 
     return gdict
 
+def printProgress(curItems, totalItems, barLength=50):
+        pStatus = (curItems / totalItems) * barLength # Gives a number from 0 to barLength
+        print("|{}->{}|".format("█"*int(pStatus), " "*(barLength - int(pStatus))), end="")
+
+
 # Objects for the multiprocessing routines
 gfvpCounter = mp.Value("i", 0)
 gfvpTotal   = 0
@@ -76,10 +81,12 @@ def getFeatureVectorProgress(file):
     with gfvpCounter.get_lock():
         gfvpCounter.value += 1
 
-    print("{}/{}: Extracting features from {}.".format(
-        classColor(str(gfvpCounter.value).rjust(4)),
-        classColor(str(gfvpTotal).ljust(4)),
-        fileColor("\"" + file + "\"")))
+        printProgress(gfvpCounter.value, gfvpTotal)
+        print("{}/{}: Extracting features from {}.".format(
+            classColor(str(gfvpCounter.value).rjust(4)),
+            classColor(str(gfvpTotal).ljust(4)),
+            fileColor("\"" + file + "\"")))
+
     return getFeatureVector(file)
 
 # Returns the dataset composed of feature vectors and the class of each music
@@ -97,7 +104,7 @@ def getDataset():
     genreCounter["Classical"] = 0
 
     os.chdir("music_negative/")
-    files = getWavFiles()
+    files = getWavFiles()[:100]
 
     # Filter the files returned above
     newFiles = []
